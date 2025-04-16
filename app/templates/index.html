@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>K8s Failure Prediction System Demo</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            padding-top: 20px;
+        }
+        .failure-toggle {
+            margin: 5px 0;
+        }
+        .card {
+            margin-bottom: 20px;
+        }
+        .metric-value {
+            font-size: 2rem;
+            font-weight: bold;
+        }
+        #chart {
+            height: 300px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="text-center mb-4">Kubernetes Failure Prediction System Demo</h1>
+        
+        <div class="row">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>System Metrics</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6 text-center">
+                                <h6>Memory Usage</h6>
+                                <div class="metric-value" id="memory-usage">0 MB</div>
+                                <div class="progress">
+                                    <div class="progress-bar bg-primary" id="memory-bar" role="progressbar" style="width: 0%"></div>
+                                </div>
+                            </div>
+                            <div class="col-md-6 text-center">
+                                <h6>CPU Usage</h6>
+                                <div class="metric-value" id="cpu-usage">0%</div>
+                                <div class="progress">
+                                    <div class="progress-bar bg-success" id="cpu-bar" role="progressbar" style="width: 0%"></div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div id="chart"></div>
+                        
+                        <div class="row mt-3">
+                            <div class="col-md-6 text-center">
+                                <h6>Requests</h6>
+                                <div class="metric-value" id="request-count">0</div>
+                            </div>
+                            <div class="col-md-6 text-center">
+                                <h6>Error Rate</h6>
+                                <div class="metric-value" id="error-rate">0%</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header">
+                        <h5>Actions</h5>
+                    </div>
+                    <div class="card-body">
+                        <button id="fetch-data" class="btn btn-primary">Fetch Data</button>
+                        <button id="health-check" class="btn btn-success ms-2">Health Check</button>
+                        <button id="load-test" class="btn btn-warning ms-2">Generate Load</button>
+                        <div class="mt-3" id="action-result"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>Failure Simulations</h5>
+                    </div>
+                    <div class="card-body">
+                        <p>Toggle these switches to simulate different failure scenarios:</p>
+                        
+                        <div class="form-check form-switch failure-toggle">
+                            <input class="form-check-input" type="checkbox" id="high-latency">
+                            <label class="form-check-label" for="high-latency">High Latency</label>
+                        </div>
+                        
+                        <div class="form-check form-switch failure-toggle">
+                            <input class="form-check-input" type="checkbox" id="memory-leak">
+                            <label class="form-check-label" for="memory-leak">Memory Leak</label>
+                        </div>
+                        
+                        <div class="form-check form-switch failure-toggle">
+                            <input class="form-check-input" type="checkbox" id="cpu-spike">
+                            <label class="form-check-label" for="cpu-spike">CPU Spike</label>
+                        </div>
+                        
+                        <div class="form-check form-switch failure-toggle">
+                            <input class="form-check-input" type="checkbox" id="error-rate">
+                            <label class="form-check-label" for="error-rate">Increased Error Rate</label>
+                        </div>
+                        
+                        <div class="form-check form-switch failure-toggle">
+                            <input class="form-check-input" type="checkbox" id="service-down">
+                            <label class="form-check-label" for="service-down">Service Down</label>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header">
+                        <h5>App Status</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-success" id="app-status">
+                            <strong>Healthy</strong>
+                        </div>
+                        <p><small>Last updated: <span id="last-updated">N/A</span></small></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        // Data arrays for the chart
+        const memoryData = Array(20).fill(100);
+        const cpuData = Array(20).fill(20);
+        const labels = Array(20).fill('');
+        
+        // Request counters
+        let totalRequests = 0;
+        let errorRequests = 0;
+        
+        // Create the chart
+        const ctx = document.createElement('canvas');
+        document.getElementById('chart').appendChild(ctx);
+        
+        const chart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'Memory Usage (MB)',
+                        data: memoryData,
+                        borderColor: 'rgb(54, 162, 235)',
+                        backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                        tension: 0.4
+                    },
+                    {
+                        label: 'CPU Usage (%)',
+                        data: cpuData,
+                        borderColor: 'rgb(75, 192, 192)',
+                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                        tension: 0.4
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        suggestedMax: 200
+                    }
+                }
+            }
+        });
+        
+        // Update the chart with new data
+        function updateChart(memory, cpu) {
+            memoryData.push(memory);
+            memoryData.shift();
+            
+            cpuData.push(cpu);
+            cpuData.shift();
+            
+            labels.push('');
+            labels.shift();
+            
+            chart.update();
+        }
+        
+        // Update the UI with metrics
+        function updateMetrics(memory, cpu) {
+            document.getElementById('memory-usage').textContent = `${memory.toFixed(2)} MB`;
+            document.getElementById('memory-bar').style.width = `${Math.min(100, memory / 2)}%`;
+            
+            document.getElementById('cpu-usage').textContent = `${cpu.toFixed(2)}%`;
+            document.getElementById('cpu-bar').style.width = `${cpu}%`;
+            
+            document.getElementById('request-count').textContent = totalRequests;
+            
+            const errorRatePercentage = totalRequests > 0 ? (errorRequests / totalRequests * 100).toFixed(1) : 0;
+            document.getElementById('error-rate').textContent = `${errorRatePercentage}%`;
+            
+            document.getElementById('last-updated').textContent = new Date().toLocaleTimeString();
+            
+            updateChart(memory, cpu);
+        }
+        
+        // Fetch metrics from the server
+        function fetchMetrics() {
+            fetch('/')
+                .then(response => {
+                    totalRequests++;
+                    if (!response.ok) {
+                        errorRequests++;
+                        throw new Error('Server error');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    updateMetrics(data.memory_usage_mb, data.cpu_usage_percent);
+                    document.getElementById('app-status').className = 'alert alert-success';
+                    document.getElementById('app-status').innerHTML = '<strong>Healthy</strong>';
+                })
+                .catch(error => {
+                    errorRequests++;
+                    document.getElementById('app-status').className = 'alert alert-danger';
+                    document.getElementById('app-status').innerHTML = '<strong>Error</strong>: Failed to fetch metrics';
+                });
+        }
+        
+        // Check application health
+        function checkHealth() {
+            fetch('/health')
+                .then(response => {
+                    totalRequests++;
+                    if (!response.ok) {
+                        errorRequests++;
+                        document.getElementById('app-status').className = 'alert alert-danger';
+                        document.getElementById('app-status').innerHTML = '<strong>Unhealthy</strong>';
+                        throw new Error('Unhealthy service');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    document.getElementById('app-status').className = 'alert alert-success';
+                    document.getElementById('app-status').innerHTML = '<strong>Healthy</strong>';
+                    document.getElementById('action-result').innerHTML = `<div class="alert alert-success">Health check: Service is healthy</div>`;
+                })
+                .catch(error => {
+                    document.getElementById('action-result').innerHTML = `<div class="alert alert-danger">Health check: Service is unhealthy</div>`;
+                });
+        }
+        
+        // Fetch data from the API
+        function fetchData() {
+            fetch('/api/data')
+                .then(response => {
+                    totalRequests++;
+                    if (!response.ok) {
+                        errorRequests++;
+                        throw new Error('Failed to fetch data');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    document.getElementById('action-result').innerHTML = `
+                        <div class="alert alert-success">
+                            <strong>Data received:</strong>
+                            <br>
+                            ${data.data.map(d => d.toFixed(2)).join(', ')}
+                        </div>
+                    `;
+                })
+                .catch(error => {
+                    document.getElementById('action-result').innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+                });
+        }
+        
+        // Toggle failure simulations
+        function toggleFailure(type, value) {
+            fetch('/failures', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    [type]: value
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log(`${type} simulation ${value ? 'enabled' : 'disabled'}`);
+            });
+        }
+        
+        // Load test - send multiple requests
+        function loadTest() {
+            document.getElementById('action-result').innerHTML = `<div class="alert alert-warning">Running load test...</div>`;
+            
+            let completedRequests = 0;
+            const totalTestRequests = 20;
+            
+            for (let i = 0; i < totalTestRequests; i++) {
+                setTimeout(() => {
+                    fetch('/api/data')
+                        .then(response => {
+                            totalRequests++;
+                            if (!response.ok) {
+                                errorRequests++;
+                            }
+                            return response.json();
+                        })
+                        .catch(error => {
+                            errorRequests++;
+                        })
+                        .finally(() => {
+                            completedRequests++;
+                            if (completedRequests === totalTestRequests) {
+                                document.getElementById('action-result').innerHTML = `
+                                    <div class="alert alert-success">
+                                        Load test completed: ${totalTestRequests} requests sent
+                                    </div>
+                                `;
+                            }
+                        });
+                }, i * 200); // Space requests out by 200ms
+            }
+        }
+        
+        // Set up event listeners
+        document.getElementById('fetch-data').addEventListener('click', fetchData);
+        document.getElementById('health-check').addEventListener('click', checkHealth);
+        document.getElementById('load-test').addEventListener('click', loadTest);
+        
+        // Failure toggle event listeners
+        document.getElementById('high-latency').addEventListener('change', e => toggleFailure('high_latency', e.target.checked));
+        document.getElementById('memory-leak').addEventListener('change', e => toggleFailure('memory_leak', e.target.checked));
+        document.getElementById('cpu-spike').addEventListener('change', e => toggleFailure('cpu_spike', e.target.checked));
+        document.getElementById('error-rate').addEventListener('change', e => toggleFailure('error_rate', e.target.checked));
+        document.getElementById('service-down').addEventListener('change', e => toggleFailure('service_down', e.target.checked));
+        
+        // Initialize by fetching metrics
+        fetchMetrics();
+        checkHealth();
+        
+        // Regularly update metrics
+        setInterval(fetchMetrics, 2000);
+        setInterval(checkHealth, 5000);
+    </script>
+</body>
+</html> 

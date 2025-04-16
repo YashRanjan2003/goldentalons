@@ -1,0 +1,8 @@
+memory_usage_mb,cpu_usage_percent,timestamp,is_healthy,success_requests,error_requests,error_rate,scenario,is_failure
+101.73,19.78,1744494363.5037167,1,10,0,0.0,normal,0
+105.29,22.3,1744494418.2777417,1,10,0,0.0,high_latency,1
+354.68,25.11,1744494454.7962062,1,10,0,0.0,memory_leak,1
+395.32,100,1744494491.354885,1,10,0,0.0,cpu_spike,1
+434.12,80.7,1744494527.9294474,1,7,3,0.3,error_rate,1
+448.99,85.92,1744494564.4938889,0,10,0,0.0,service_down,1
+710.89,100,1744494603.0936184,1,10,0,0.0,combined_resource,1

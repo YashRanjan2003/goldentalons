@@ -1,165 +1,182 @@
-# Term Sheet Analysis Tool
+# Kubernetes Failure Prediction System
 
-A Python tool for extracting and analyzing financial information from term sheets and other documents using:
+This project implements a machine learning-based system for predicting potential failures in Kubernetes clusters by analyzing various system metrics. Instead of relying on synthetic or pre-existing datasets, this project creates a real-world web application that can be deployed on Kubernetes, simulate various failure scenarios, and generate real metrics data to train machine learning models.
 
-1. **Tesseract OCR** - For text extraction from images and PDFs
-2. **spaCy** - For financial entity recognition 
-3. **Camelot** - For table extraction from PDFs
+## Project Components
 
-## Features
+1. **Demo Web Application**: A Flask web application with a dashboard for visualizing metrics and simulating failures
+2. **Kubernetes Deployment**: Configuration files for deploying the application and monitoring tools on Kubernetes
+3. **Metrics Collection**: Scripts to collect system metrics during normal operation and simulated failures
+4. **Machine Learning Models**: Implementation of multiple models (Random Forest, XGBoost, Neural Network) to predict failures
+5. **Prediction Service**: A service that continuously monitors cluster metrics and predicts potential failures in real-time
 
-- Extract text from PDFs, images, Word documents, and text files
-- Identify financial entities such as:
-  - Monetary amounts
-  - Dates
-  - Percentages
-  - Financial terms
-  - Currencies
-  - Organizations
-- Extract and analyze tables from PDFs and Word documents
-- Save results in JSON format for further processing
+## Architecture
 
-## Installation
+![System Architecture](https://example.com/architecture.png)
+
+The system is structured as follows:
+
+- **Web Application**: A Flask application with Prometheus metrics and failure simulation endpoints
+- **Prometheus**: Collects and stores metrics from the application and Kubernetes cluster
+- **Metrics Collector**: Script that simulates various failure scenarios and collects metrics
+- **ML Training Pipeline**: Trains and evaluates different ML models using the collected metrics
+- **Prediction Service**: Continuously monitors metrics and predicts potential failures
+
+## Getting Started
 
 ### Prerequisites
 
-- Python 3.7+
-- Tesseract OCR installed on your system
+- Docker
+- Kubernetes cluster (can be Minikube or kind for local development)
+- Python 3.8+
+- kubectl
 
-### Install Tesseract OCR
+### Installation
 
-#### Windows:
-1. Download the installer from [https://github.com/UB-Mannheim/tesseract/wiki](https://github.com/UB-Mannheim/tesseract/wiki)
-2. Add Tesseract to your PATH
-
-#### macOS:
+1. Clone this repository:
 ```bash
-brew install tesseract
+git clone https://github.com/yourusername/k8s-failure-prediction.git
+cd k8s-failure-prediction
 ```
 
-#### Linux:
+2. Build the Docker image:
 ```bash
-sudo apt install tesseract-ocr
+docker build -t k8s-failure-demo:latest .
 ```
 
-### Install Required Python Packages
-
+3. Deploy the application to Kubernetes:
 ```bash
-pip install -r requirements.txt
+kubectl apply -f k8s/deployment.yaml
+kubectl apply -f k8s/service.yaml
 ```
 
-### Install spaCy Language Model
-
+4. Deploy Prometheus for metrics collection:
 ```bash
-python -m spacy download en_core_web_sm
+kubectl apply -f k8s/prometheus-config.yaml
+kubectl apply -f k8s/prometheus.yaml
+```
+
+5. Install required Python packages for the scripts:
+```bash
+pip install -r scripts/requirements.txt
 ```
 
 ## Usage
 
-### Basic Usage
+### Accessing the Application
+
+Once deployed, you can access the web dashboard at:
+```
+http://<kubernetes-service-ip>
+```
+
+### Simulating Failures
+
+The web dashboard provides toggles to simulate various failure scenarios:
+
+1. **High Latency**: Introduces artificial delays in request processing
+2. **Memory Leak**: Simulates gradually increasing memory usage
+3. **CPU Spike**: Causes high CPU utilization
+4. **Error Rate**: Introduces random errors in API responses
+5. **Service Down**: Makes the health endpoint return unhealthy status
+
+You can also use the API directly:
+```bash
+# Enable memory leak simulation
+curl -X POST http://<service-ip>/failures -H "Content-Type: application/json" -d '{"memory_leak": true}'
+
+# Enable multiple failures
+curl -X POST http://<service-ip>/failures -H "Content-Type: application/json" -d '{"high_latency": true, "error_rate": true}'
+
+# Check current failure configuration
+curl http://<service-ip>/failures
+```
+
+### Collecting Metrics Data
+
+To collect metrics during normal operation and simulated failures:
 
 ```bash
-python app/main.py <file_path>
+python scripts/collect_metrics.py --app-host <service-ip> --prom-host <prometheus-ip> --duration 300 --output metrics_data.csv
 ```
 
-### Options
+This will:
+1. Run through different failure scenarios (normal, memory leak, CPU spike, etc.)
+2. Collect metrics from Prometheus during each scenario
+3. Save the labeled dataset to a CSV file for training
 
-- `--json`: Output results in JSON format
-- `--save <path>`: Save results to specified file path
-- `--help`: Show help message
+### Training Models
 
-### Examples
+To train machine learning models on the collected data:
 
 ```bash
-# Process a PDF file
-python app/main.py sample.pdf
-
-# Process an image file and output in JSON format
-python app/main.py contract.jpg --json
-
-# Process a PDF and save results to a file
-python app/main.py termsheet.pdf --save results.json
+python scripts/train_model.py --input metrics_data.csv --output-dir models
 ```
 
-## Supported File Types
+This script will:
+1. Preprocess the metrics data
+2. Train multiple models (Random Forest, XGBoost, Neural Network)
+3. Evaluate the models and select the best performer
+4. Save the models and related artifacts to the specified directory
 
-- **PDF Documents** (.pdf)
-- **Images** (.jpg, .jpeg, .png, .bmp, .tiff, .tif)
-- **Word Documents** (.docx)
-- **Text Files** (.txt)
+### Running the Prediction Service
 
-## Output Format
+To run the prediction service that continuously monitors metrics and predicts failures:
 
-The tool provides the following information:
-
-1. **Extracted Text**: The full text content extracted from the document
-2. **Financial Entities**: List of identified financial entities with their types
-3. **Tables**: Structured data extracted from tables in the document
-
-## Example
-
-```
-╔════════════════════════════════════════════════════════════╗
-║                                                            ║
-║  Term Sheet Analysis Tool                                  ║
-║  - OCR Text Extraction                                     ║
-║  - Financial Entity Recognition                            ║
-║  - Table Extraction                                        ║
-║                                                            ║
-╚════════════════════════════════════════════════════════════╝
-
-Processing file: sample_termsheet.pdf
-
---- FILE TYPE: PDF ---
-
---- EXTRACTED TEXT (first 500 chars) ---
-TERM SHEET
-Issuer: ABC Corporation
-Date: 01/15/2023
-Amount: $10,000,000
-Interest Rate: 5.25%
-Maturity: 5 years from date of issuance
-...
-
---- FINANCIAL ENTITIES ---
-Found 8 financial entities
-
-ORGANIZATION:
-  - ABC Corporation
-
-MONEY:
-  - $10,000,000
-
-PERCENTAGE:
-  - 5.25%
-
-DATE:
-  - 01/15/2023
-
---- TABLES ---
-Found 2 tables
-
-Table 1:
-   Term             Value
-0  Issuer           ABC Corporation
-1  Principal Amount $10,000,000
-2  Interest Rate    5.25%
-3  Maturity         5 years
-
-Processing complete!
+```bash
+python scripts/prediction_service.py --prom-host <prometheus-ip> --model-dir models --model-type rf
 ```
 
-## Limitations
+This service will:
+1. Load the trained model
+2. Continuously collect metrics from Prometheus
+3. Make real-time predictions about potential failures
+4. Provide an API endpoint for querying current predictions
 
-- OCR accuracy depends on document quality
-- Complex tables may not be extracted correctly
-- PDF extraction requires clear, non-scanned documents for best results
+You can access the prediction API at:
+```
+http://<prediction-service-ip>:8080/prediction
+```
 
-## Troubleshooting
+## Development
 
-If you encounter issues with table extraction:
-- Ensure your PDF has actual tables (not images of tables)
-- For image-based PDFs, only text will be extracted through OCR
+### Project Structure
 
-If entity recognition misses expected entities:
-- Custom financial patterns can be added in `document_processor.py` 
+```
+├── app/                        # Demo web application
+│   ├── app.py                  # Flask application with metrics and failure simulation
+│   └── templates/              # HTML templates for the web dashboard
+├── k8s/                        # Kubernetes configuration files
+│   ├── deployment.yaml         # Deployment for the demo app
+│   ├── service.yaml            # Service for the demo app
+│   ├── prometheus-config.yaml  # Prometheus configuration
+│   └── prometheus.yaml         # Prometheus deployment
+├── scripts/                    # Utility scripts
+│   ├── collect_metrics.py      # Script to collect metrics and simulate failures
+│   ├── train_model.py          # Script to train and evaluate ML models
+│   └── prediction_service.py   # Service for real-time failure prediction
+├── Dockerfile                  # Dockerfile for the demo app
+├── requirements.txt            # Python dependencies for the demo app
+└── README.md                   # This README file
+```
+
+### Extending the Project
+
+To add new failure scenarios:
+1. Add a new failure type to the `SIMULATED_FAILURES` dictionary in `app/app.py`
+2. Implement the simulation logic in the relevant endpoint handlers
+3. Add a new toggle in the web dashboard (`app/templates/index.html`)
+4. Update the failure scenarios in `scripts/collect_metrics.py`
+
+To add new metrics:
+1. Add new Prometheus metrics in `app/app.py`
+2. Update the metric queries in the collection scripts
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Acknowledgments
+
+- The Prometheus and Kubernetes communities
+- scikit-learn, XGBoost, and TensorFlow for machine learning tools 

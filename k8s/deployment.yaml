@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: k8s-failure-demo
+  labels:
+    app: k8s-failure-demo
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: k8s-failure-demo
+  template:
+    metadata:
+      labels:
+        app: k8s-failure-demo
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+    spec:
+      containers:
+      - name: k8s-failure-demo
+        image: k8s-failure-demo:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 5000
+          name: http
+        - containerPort: 8000
+          name: metrics
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 5000
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 5000
+          initialDelaySeconds: 5
+          periodSeconds: 10 
